@@ -1,0 +1,1359 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>小说进度追踪</title>
+<link href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700&display=swap" rel="stylesheet">
+<style>
+:root,[data-theme="light"]{
+  --bg:#f4ecd8;--surface:#faefe0;--surface2:#fcf4e6;--offset:#ebdcb9;--dynamic:#e3d1a8;
+  --divider:#dfd0b0;--border:#d4c4a1;
+  --text:#4a3e2c;--muted:#827255;--faint:#b8a88a;
+  --primary:#01696f;--primary-h:#0c4e54;--primary-hl:#d4e8e6;
+  --success:#437a22;--warn:#964219;--blue:#006494;
+  --sh-sm:0 1px 3px oklch(0.2 0.01 80/.07);--sh-md:0 4px 16px oklch(0.2 0.01 80/.10);
+  --r-sm:.375rem;--r-md:.5rem;--r-lg:.75rem;--r-xl:1rem;--r-full:9999px;
+  --font:'Satoshi','PingFang SC','Microsoft YaHei',sans-serif;
+  --tx-xs:clamp(.7rem,.66rem + .2vw,.8rem);--tx-sm:clamp(.82rem,.78rem + .22vw,.92rem);
+  --tx-base:clamp(.92rem,.88rem + .22vw,1.02rem);--tx-lg:clamp(1.05rem,.95rem + .5vw,1.3rem);
+  --tx-xl:clamp(1.35rem,1.05rem + 1vw,1.95rem);--tr:170ms cubic-bezier(.16,1,.3,1);
+}
+[data-theme="dark"]{
+  --bg:#161513;--surface:#1b1a18;--surface2:#1f1e1c;--offset:#232220;--dynamic:#2b2a28;
+  --divider:#252422;--border:#353432;--text:#cccac8;--muted:#78776f;--faint:#504f4d;
+  --primary:#4f9ea8;--primary-h:#227f8b;--primary-hl:#192e30;
+  --success:#6daa45;--warn:#c0703f;--blue:#5591c7;
+  --sh-sm:0 1px 3px #0005;--sh-md:0 4px 16px #0008;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden;font-family:var(--font);font-size:var(--tx-sm);color:var(--text);background:var(--bg);-webkit-font-smoothing:antialiased}
+
+.app{display:grid;grid-template-columns:48px 1fr;height:100dvh;overflow:hidden}
+
+/* sidebar */
+.sidebar{background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;align-items:center;padding:10px 0;gap:2px}
+.logo{width:28px;height:28px;margin-bottom:14px;color:var(--primary)}
+.nav-btn{width:34px;height:34px;border-radius:var(--r-md);border:none;background:transparent;color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all var(--tr);position:relative}
+.nav-btn:hover{background:var(--offset);color:var(--text)}
+.nav-btn.active{background:var(--primary-hl);color:var(--primary)}
+.nav-btn .tip{position:absolute;left:42px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r-md);padding:4px 10px;font-size:var(--tx-xs);white-space:nowrap;pointer-events:none;opacity:0;transition:opacity var(--tr);box-shadow:var(--sh-md);z-index:300}
+.nav-btn:hover .tip{opacity:1}
+.sb-gap{flex:1}
+
+/* main */
+.main{display:flex;flex-direction:column;overflow:hidden;min-width:0}
+
+/* topbar */
+.topbar{height:50px;display:flex;align-items:center;padding:0 18px;gap:10px;border-bottom:1px solid var(--border);background:var(--bg);flex-shrink:0;z-index:20}
+.topbar-title{font-size:var(--tx-base);font-weight:700;letter-spacing:-.02em;margin-right:auto}
+.btn{display:inline-flex;align-items:center;gap:5px;padding:6px 13px;border-radius:var(--r-md);font-size:var(--tx-xs);font-weight:600;cursor:pointer;transition:all var(--tr);border:1px solid transparent;font-family:var(--font);line-height:1}
+.btn-primary{background:var(--primary);color:#fff;border-color:var(--primary)}
+.btn-primary:hover{background:var(--primary-h)}
+.btn-ghost{background:transparent;color:var(--muted);border-color:var(--border)}
+.btn-ghost:hover{background:var(--offset);color:var(--text)}
+.btn-danger{background:transparent;color:#d163a7;border-color:var(--border)}
+.btn-danger:hover{background:#d163a7;color:#fff}
+.icon-btn{height:30px;min-width:30px;border-radius:var(--r-md);border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all var(--tr);font-family:var(--font);font-size:10px;font-weight:700;padding:0 8px}
+.icon-btn:hover{background:var(--offset);color:var(--text)}
+
+/* views */
+.view{display:none;flex:1;overflow:hidden;flex-direction:column}
+.view.active{display:flex}
+
+/* ═══════════ GANTT ═══════════ */
+.gantt-toolbar{display:flex;align-items:center;gap:8px;padding:8px 18px;border-bottom:1px solid var(--border);flex-shrink:0;background:var(--bg)}
+.scale-tabs{display:flex;gap:2px;background:var(--offset);border-radius:var(--r-md);padding:2px}
+.stab{padding:4px 12px;border-radius:calc(var(--r-md) - 2px);border:none;background:transparent;color:var(--muted);cursor:pointer;font-size:var(--tx-xs);font-weight:600;font-family:var(--font);transition:all var(--tr)}
+.stab.active{background:var(--surface2);color:var(--text);box-shadow:var(--sh-sm)}
+
+/* gantt scroll wrapper — horizontal scroll only */
+.gantt-scroll{flex:1;overflow:auto}
+.gantt-inner{display:inline-grid;min-width:100%;min-height:100%}
+
+/* sticky label column header */
+.g-corner{
+  position:sticky;left:0;top:0;z-index:35;
+  background:var(--surface);border-right:1px solid var(--border);border-bottom:1px solid var(--border);
+  padding:0 14px;
+  font-size:var(--tx-xs);font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);
+  display:flex;align-items:center;grid-row:1/3;
+}
+/* month header row */
+.g-month{
+  position:sticky;top:0;z-index:32;
+  background:var(--surface);border-bottom:1px solid var(--divider);border-right:1px solid var(--border);
+  font-size:11px;font-weight:700;color:var(--text);
+  padding:4px 8px;display:flex;align-items:center;
+  overflow:hidden;white-space:nowrap;
+}
+.g-month span{position:sticky;left:166px;}
+
+/* date header row */
+.g-date{
+  position:sticky;top:25px;z-index:31;
+  background:var(--surface);border-bottom:1px solid var(--border);border-right:1px solid var(--divider);
+  font-size:10px;color:var(--faint);text-align:center;padding:5px 0;
+  font-variant-numeric:tabular-nums;line-height:1;
+  display:flex;align-items:center;justify-content:center;
+}
+.g-date.we{background:color-mix(in oklab,var(--offset) 50%,transparent)}
+.g-date.td{color:var(--primary);font-weight:800;border-right-color:var(--primary)}
+
+/* label cell */
+.g-label{
+  position:sticky;left:0;z-index:10;
+  background:var(--surface);border-right:1px solid var(--border);border-bottom:1px solid var(--divider);
+  padding:0 12px;display:flex;align-items:center;gap:8px;min-height:56px;cursor:pointer;
+  transition:background var(--tr);
+}
+.g-label:hover{background:var(--offset)}
+.g-label-inner{display:flex;flex-direction:column;gap:3px;min-width:0}
+.g-novel-name{font-size:var(--tx-sm);font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:106px}
+.g-novel-meta{font-size:10px;color:var(--muted);white-space:nowrap}
+
+/* track cell */
+.g-track{
+  border-bottom:1px solid var(--divider);
+  position:relative;min-height:56px;
+}
+.g-track-bg{display:flex;position:absolute;inset:0;pointer-events:none;z-index:0}
+.g-bg-cell{flex-shrink:0;height:100%;border-right:1px solid var(--divider)}
+.g-bg-cell.ms{border-right-color:var(--border)}
+.g-bg-cell.we{background:color-mix(in oklab,var(--offset) 30%,transparent)}
+.g-bg-cell.td{border-right-color:var(--primary)}
+
+@keyframes popHighlight {
+  0% { filter: brightness(1.8) drop-shadow(0 0 6px var(--text)); }
+  100% { filter: brightness(1) drop-shadow(0 0 0 transparent); }
+}
+
+.g-bar{
+  position:absolute;top:50%;transform:translateY(-50%);
+  height:22px;border-radius:4px;
+  cursor:pointer;z-index:5;
+  transition:filter var(--tr),box-shadow var(--tr);
+}
+.g-bar.updated {
+  animation: popHighlight 1.5s ease-out forwards;
+}
+.g-bar:hover{filter:brightness(1.15);box-shadow:var(--sh-md)}
+.g-bar-label{
+  position:absolute;inset:0;display:flex;align-items:center;
+  padding:0 9px;font-size:10px;font-weight:700;color:#fff;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  pointer-events:none;
+}
+
+/* tooltip */
+.tt{position:fixed;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r-lg);padding:12px 14px;font-size:var(--tx-xs);box-shadow:var(--sh-md);pointer-events:none;z-index:500;min-width:170px;display:none}
+.tt.show{display:block}
+.tt-name{font-weight:700;font-size:var(--tx-sm);margin-bottom:8px;display:flex;align-items:center;gap:6px}
+.tt-row{display:flex;justify-content:space-between;gap:14px;color:var(--muted);margin-bottom:4px}
+.tt-row b{color:var(--text);font-weight:600;font-variant-numeric:tabular-nums}
+.tt-hint{margin-top:8px;font-size:10px;color:var(--faint)}
+
+/* ═══════════ DASHBOARD ═══════════ */
+.dash-body{flex:1;overflow-y:auto;padding:18px 20px}
+.kpi-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-bottom:18px}
+.kpi{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:14px 16px;box-shadow:var(--sh-sm)}
+.kpi-lbl{font-size:9px;color:var(--muted);font-weight:700;letter-spacing:.06em;text-transform:uppercase;margin-bottom:5px}
+.kpi-val{font-size:var(--tx-xl);font-weight:700;letter-spacing:-.03em;font-variant-numeric:tabular-nums;line-height:1}
+.kpi-sub{font-size:9px;color:var(--faint);margin-top:4px}
+.sec-title{font-size:var(--tx-sm);font-weight:700;margin-bottom:10px}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px}
+
+/* NOVEL CARD & DRAG DROP */
+.nc{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:14px 16px;box-shadow:var(--sh-sm);transition:all var(--tr);cursor:grab}
+.nc:hover{box-shadow:var(--sh-md)}
+.nc:active{cursor:grabbing}
+.nc.dragging{opacity:0.4;transform:scale(0.98)}
+.nc.drag-over{border-color:var(--primary);box-shadow:0 0 0 2px var(--primary-hl)}
+
+.nc-head{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px;pointer-events:none}
+.nc-name{font-weight:700;display:flex;align-items:center;gap:7px;font-size:var(--tx-sm)}
+.dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.badge{font-size:9px;font-weight:700;padding:2px 7px;border-radius:var(--r-full)}
+.b-active{background:color-mix(in oklab,var(--success) 18%,transparent);color:var(--success)}
+.b-hiatus{background:color-mix(in oklab,var(--warn) 18%,transparent);color:var(--warn)}
+.b-complete{background:color-mix(in oklab,var(--blue) 18%,transparent);color:var(--blue)}
+.nc-meta{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:10px;pointer-events:none}
+.nc-m{display:flex;flex-direction:column;gap:2px}
+.nc-ml{font-size:9px;color:var(--faint)}
+.nc-mv{font-size:var(--tx-sm);font-weight:700;font-variant-numeric:tabular-nums}
+.prog-wrap{margin-bottom:10px;pointer-events:none}
+.prog-lbl{display:flex;justify-content:space-between;font-size:9px;color:var(--muted);margin-bottom:4px}
+.prog-track{height:5px;border-radius:var(--r-full);background:var(--dynamic);overflow:hidden}
+.prog-fill{height:100%;border-radius:var(--r-full)}
+.nc-acts{display:flex;gap:6px;align-items:center}
+.empty{display:flex;flex-direction:column;align-items:center;text-align:center;padding:60px 20px;color:var(--muted)}
+.empty svg{color:var(--faint);margin-bottom:12px}
+.empty h3{color:var(--text);margin-bottom:6px}
+.empty p{font-size:var(--tx-xs);max-width:28ch;margin-bottom:16px}
+
+/* ═══════════ MODAL ═══════════ */
+.overlay{position:fixed;inset:0;background:oklch(0 0 0/.5);display:flex;align-items:center;justify-content:center;z-index:400;opacity:0;pointer-events:none;transition:opacity var(--tr)}
+.overlay.open{opacity:1;pointer-events:all}
+.modal{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);padding:24px;width:min(440px,92vw);box-shadow:var(--sh-md);transform:translateY(12px);transition:transform var(--tr)}
+.overlay.open .modal{transform:translateY(0)}
+.modal-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:18px}
+.modal-title{font-size:var(--tx-base);font-weight:700}
+.ff{display:flex;flex-direction:column;gap:5px;margin-bottom:12px}
+.fl{font-size:9px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.fi,.fs{padding:8px 11px;border-radius:var(--r-md);border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:var(--tx-sm);font-family:var(--font);transition:border-color var(--tr)}
+.fi:focus,.fs:focus{outline:none;border-color:var(--primary)}
+.frow{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.f-acts{display:flex;gap:8px;justify-content:flex-end;margin-top:18px}
+
+/* color picker swatches */
+.color-swatches{display:flex;flex-wrap:wrap;gap:7px}
+.swatch{width:24px;height:24px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:all var(--tr);flex-shrink:0}
+.swatch.selected{border-color:var(--text);transform:scale(1.18)}
+.toast{position:fixed;top:24px;left:50%;transform:translateX(-50%) translateY(-20px);background:var(--surface);color:var(--text);border:1px solid var(--border);padding:10px 24px;border-radius:var(--r-full);box-shadow:var(--sh-md);font-size:var(--tx-sm);font-weight:700;z-index:9999;opacity:0;pointer-events:none;transition:all var(--tr)}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+/* ═══════════ LOGS TABLE ═══════════ */
+.log-table {width:100%;border-collapse:collapse;font-size:var(--tx-sm)}
+.log-table th {background:var(--surface2);color:var(--muted);font-size:9px;text-transform:uppercase;letter-spacing:.06em;padding:12px 20px;text-align:left;position:sticky;top:0;z-index:10;border-bottom:1px solid var(--divider)}
+.log-table td {padding:12px 20px;border-bottom:1px solid var(--divider);vertical-align:middle;font-variant-numeric:tabular-nums}
+.log-table tr:hover td {background:var(--surface)}
+</style>
+</head>
+<body>
+<div id="toast" class="toast"></div>
+<div class="app">
+
+<nav class="sidebar">
+  <svg class="logo" viewBox="0 0 28 28" fill="none">
+    <rect x="4" y="3" width="13" height="20" rx="2.2" stroke="currentColor" stroke-width="1.8"/>
+    <rect x="11" y="5" width="13" height="20" rx="2.2" fill="var(--bg)" stroke="currentColor" stroke-width="1.8"/>
+    <line x1="14" y1="11" x2="21" y2="11" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+    <line x1="14" y1="14.5" x2="21" y2="14.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+    <line x1="14" y1="18" x2="18.5" y2="18" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+  </svg>
+  <button class="nav-btn active" data-view="gantt" onclick="switchView('gantt')">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+    <span class="tip">日历进度</span>
+  </button>
+  <button class="nav-btn" data-view="dashboard" onclick="switchView('dashboard')">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+    <span class="tip">总览</span>
+  </button>
+  <button class="nav-btn" data-view="logs" onclick="switchView('logs')">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+    <span class="tip">记录管理</span>
+  </button>
+  <div class="sb-gap"></div>
+</nav>
+
+<div class="main">
+
+  <div class="view active" id="view-gantt">
+    <div class="topbar">
+      <span class="topbar-title">日历进度</span>
+      <div class="scale-tabs">
+        <button class="stab" onclick="setScale('2w')">宽距</button>
+        <button class="stab active" onclick="setScale('1m')">标准</button>
+        <button class="stab" onclick="setScale('3m')">紧凑</button>
+        <button class="stab" onclick="setScale('all')">微缩</button>
+      </div>
+      <button class="icon-btn" onclick="goToday()" style="color:var(--primary);border-color:var(--primary);margin-right:auto">今天</button>
+      <button class="icon-btn" onclick="toggleTheme()" title="切换主题">
+        <svg class="theme-ic" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+      </button>
+      <button class="btn btn-ghost" onclick="openRM()" style="color:var(--warn);border-color:color-mix(in oklab,var(--warn) 30%,transparent)" title="全局批量调整所有小说的进度">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+        全局调整
+      </button>
+      <button class="btn btn-ghost" onclick="quickCheckInAll()" style="color:var(--blue);border-color:var(--blue)" title="一键将所有连载小说按计划发文">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+        一键打卡
+      </button>
+      <button class="btn btn-ghost" onclick="openCI()" style="color:var(--success);border-color:var(--success)">
+        <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="14,4 6,12 2,8"/></svg>
+        手动打卡
+      </button>
+      <button class="btn btn-primary" onclick="openAdd()">
+        <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="8" y1="2" x2="8" y2="14"/><line x1="2" y1="8" x2="14" y2="8"/></svg>
+        新增小说
+      </button>
+    </div>
+    <div class="gantt-scroll" id="g-scroll">
+      <div class="gantt-inner" id="g-inner"></div>
+    </div>
+    <div class="tt" id="tt"></div>
+  </div>
+
+  <div class="view" id="view-dashboard">
+    <div class="topbar">
+      <span class="topbar-title">总览</span>
+      <div style="margin-left:auto;display:flex;gap:10px">
+        <input type="file" id="import-file" style="display:none" accept=".json" onchange="importData(event)">
+        <button class="btn btn-ghost" onclick="document.getElementById('import-file').click()" title="从本地JSON文件导入数据">导入</button>
+        <button class="btn btn-ghost" onclick="exportData()" title="将数据导出为JSON备份文件">导出</button>
+        <button class="icon-btn" onclick="toggleTheme()" title="切换主题">
+          <svg class="theme-ic" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+        </button>
+        <button class="btn btn-ghost" onclick="openCI()" style="color:var(--success);border-color:var(--success);">
+          <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="14,4 6,12 2,8"/></svg>
+          手动打卡
+        </button>
+        <button class="btn btn-primary" onclick="openAdd()">
+          <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="8" y1="2" x2="8" y2="14"/><line x1="2" y1="8" x2="14" y2="8"/></svg>
+          新增小说
+        </button>
+      </div>
+    </div>
+    <div class="dash-body">
+      <div class="kpi-row" id="kpis"></div>
+      <div class="sec-title">所有小说</div>
+      <div class="cards" id="cards"></div>
+    </div>
+  </div>
+
+  <div class="view" id="view-logs">
+    <div class="topbar">
+      <span class="topbar-title">记录管理</span>
+      <select class="fs" id="log-filter-novel" onchange="renderLogs()" style="margin-left:auto;padding:4px 8px;font-size:12px">
+        <option value="all">所有小说</option>
+      </select>
+    </div>
+    <div class="dash-body" style="padding:0">
+      <table class="log-table">
+        <thead>
+          <tr>
+            <th>小说</th>
+            <th>日期</th>
+            <th>已发章节</th>
+            <th>已写总计</th>
+            <th>当前存稿</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody id="log-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<!-- Summary Modal -->
+<div class="overlay" id="sm">
+  <div class="modal" style="width:320px;text-align:center">
+    <div style="font-size:42px;margin-bottom:12px">🎉</div>
+    <div class="modal-title" style="margin-bottom:8px">打卡成功</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:20px" id="sm-subtitle"></div>
+    <div id="sm-list" style="background:var(--surface2);padding:12px 18px;border-radius:var(--r-md);font-size:12px;line-height:2.2;max-height:200px;overflow:auto;text-align:left;color:var(--text);margin-bottom:20px"></div>
+    <button class="btn btn-primary" style="width:100%;justify-content:center;padding:10px" onclick="closeM('sm')">太棒了</button>
+  </div>
+</div>
+
+<!-- Write Log Modal -->
+<div class="overlay" id="wm">
+  <div class="modal">
+    <div class="modal-head">
+      <div class="modal-title" id="wm-title">记录码字</div>
+      <button class="icon-btn" onclick="closeM('wm')" style="border:none;margin:-8px -8px 0 0"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="frow">
+      <div class="ff"><label class="fl">日期</label><input class="fi" id="wm-date" type="date"></div>
+      <div class="ff"><label class="fl">今日新写(章)</label><input class="fi" id="wm-delta-total" type="number" min="1" value="1"></div>
+    </div>
+    <div class="f-acts">
+      <button class="btn btn-ghost" onclick="closeM('wm')">取消</button>
+      <button class="btn btn-primary" onclick="saveWrite()">保存记录</button>
+    </div>
+  </div>
+</div>
+
+<!-- Rollback / Advance Modal -->
+<div class="overlay" id="rm">
+  <div class="modal">
+    <div class="modal-head">
+      <div class="modal-title">批量调整进度</div>
+      <button class="icon-btn" onclick="closeM('rm')" style="border:none;margin:-8px -8px 0 0"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    
+    <div class="ff" style="margin-bottom:20px;padding-bottom:20px;border-bottom:1px solid var(--divider)">
+      <div style="font-weight:700;margin-bottom:8px;color:var(--blue)">▶ 全局推进</div>
+      <label class="fl" style="margin-bottom:6px">将所有【连载中】小说的发文进度，按每日计划自动补齐至：</label>
+      <input class="fi" id="rm-advance-date" type="date" style="margin-bottom:8px">
+      <div style="display:flex;gap:6px">
+        <button class="btn btn-ghost" style="font-size:10px;padding:4px 8px" onclick="document.getElementById('rm-advance-date').value=todayStr()">推进到今天</button>
+        <button class="btn btn-ghost" style="font-size:10px;padding:4px 8px" onclick="document.getElementById('rm-advance-date').value=addDays(todayStr(), -1)">推进到昨天</button>
+        <button class="btn btn-ghost" style="font-size:10px;padding:4px 8px" onclick="document.getElementById('rm-advance-date').value=addDays(todayStr(), -2)">推进到前天</button>
+      </div>
+      <div class="f-acts" style="margin-top:10px;justify-content:flex-start;">
+        <button class="btn btn-primary" style="padding:6px 12px;font-size:12px;" onclick="executeGlobalAdvanceByDate()">确认推进</button>
+      </div>
+    </div>
+
+    <div class="ff" style="margin-bottom:10px">
+      <div style="font-weight:700;margin-bottom:8px;color:var(--warn)">⏪ 全局回退</div>
+      <label class="fl">将所有小说的进度【回退至】以下日期：</label>
+      <div style="font-size:10px;color:var(--faint);margin-bottom:6px">（保留该日进度，仅删除该日之后的记录）</div>
+      <input class="fi" id="rm-date" type="date" style="margin-bottom:8px">
+      <div style="display:flex;gap:6px">
+        <button class="btn btn-ghost" style="font-size:10px;padding:4px 8px" onclick="document.getElementById('rm-date').value=addDays(todayStr(), -1)">退到昨天</button>
+        <button class="btn btn-ghost" style="font-size:10px;padding:4px 8px" onclick="document.getElementById('rm-date').value=addDays(todayStr(), -3)">退到3天前</button>
+        <button class="btn btn-ghost" style="font-size:10px;padding:4px 8px" onclick="document.getElementById('rm-date').value=addDays(todayStr(), -7)">退到1周前</button>
+      </div>
+      <div class="f-acts" style="margin-top:10px;justify-content:flex-start;">
+        <button class="btn btn-danger" style="padding:6px 12px;font-size:12px;" onclick="executeGlobalRollback()">确认回退</button>
+      </div>
+    </div>
+    <div class="f-acts" style="border-top:1px solid var(--divider);padding-top:16px;">
+      <button class="btn btn-ghost" onclick="closeM('rm')" style="margin-left:auto">取消</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="nm">
+  <div class="modal">
+    <div class="modal-head">
+      <div class="modal-title" id="nm-title">新增小说</div>
+      <button class="icon-btn" onclick="closeM('nm')" style="border:none;margin:-8px -8px 0 0"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="ff"><label class="fl">小说名称</label><input class="fi" id="f-name" placeholder="例：斗破苍穹"></div>
+    <div class="frow">
+      <div class="ff"><label class="fl">开始日期</label><input class="fi" id="f-start" type="date"></div>
+      <div class="ff"><label class="fl">目标章节数（可选）</label><input class="fi" id="f-target" type="number" placeholder="如 1000" min="1"></div>
+    </div>
+    <div class="frow">
+      <div class="ff"><label class="fl">已发章节数</label><input class="fi" id="f-ch" type="number" placeholder="0" min="0"></div>
+      <div class="ff"><label class="fl">已写总章数</label><input class="fi" id="f-total" type="number" placeholder="0" min="0"></div>
+    </div>
+    <div class="frow">
+      <div class="ff"><label class="fl">计划日更(章)</label><input class="fi" id="f-daily" type="number" value="1" min="1"></div>
+      <div class="ff"><label class="fl">状态</label>
+        <select class="fs" id="f-status">
+          <option value="active">连载中</option>
+          <option value="hiatus">暂停</option>
+          <option value="complete">已完结</option>
+        </select>
+      </div>
+    </div>
+    <div class="ff">
+      <label class="fl">颜色</label>
+      <div class="color-swatches" id="color-swatches"></div>
+    </div>
+    <div class="f-acts">
+      <button class="btn btn-ghost" onclick="closeM('nm')">取消</button>
+      <button class="btn btn-primary" onclick="saveNovel()">保存</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="ci">
+  <div class="modal">
+    <div class="modal-head">
+      <div class="modal-title" id="ci-title">手动打卡 (发文)</div>
+      <button class="icon-btn" onclick="closeM('ci')" style="border:none;margin:-8px -8px 0 0"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="ff" id="ci-novel-row" style="display:none">
+      <label class="fl">选择小说</label>
+      <select class="fs" id="ci-novel-sel" onchange="ciNovelChanged()"></select>
+    </div>
+    <div class="frow">
+      <div class="ff"><label class="fl">日期</label><input class="fi" id="ci-date" type="date"></div>
+      <div class="ff"><label class="fl">今日发文(章) <span id="ci-hint-ch" style="text-transform:none;font-weight:400;color:var(--primary)"></span></label><input class="fi" id="ci-delta-ch" type="number" min="0" value="0" oninput="updateCIPreview()"></div>
+    </div>
+    <div id="ci-preview" style="font-size:10px;color:var(--muted);text-align:right;margin-bottom:12px;font-variant-numeric:tabular-nums"></div>
+    <div class="f-acts" style="justify-content: space-between">
+      <button class="btn btn-ghost" style="color:var(--warn)" onclick="executeSingleRollback()" title="删除此时期之后的记录">回退至此日</button>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-ghost" onclick="closeM('ci')">取消</button>
+        <button class="btn btn-primary" onclick="saveCI()">打卡确认</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const PAL=[
+  '#4f98a3','#e8af34','#6daa45','#a86fdf','#e07060',
+  '#d163a7','#5591c7','#c0703f','#7ab87a','#9b7fe8',
+  '#e8c34f','#60a8c0','#d4826a','#72b89e','#c47ab8'
+];
+
+let novels=[], eid=null, cid=null, wid=null, selColor=PAL[0];
+let scale='2w', offset=0;
+
+const fmt = d => { const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), day=String(d.getDate()).padStart(2,'0'); return `${y}-${m}-${day}`; };
+const todayStr = () => fmt(new Date());
+function addDays(str,n){const d=new Date(str);d.setDate(d.getDate()+n);return fmt(d);}
+function diffDays(a,b){return Math.round((new Date(a)-new Date(b))/86400000);}
+function latestCh(n){return n.logs?.length?n.logs[n.logs.length-1].chapter:0;}
+function latestTotal(n){if(!n.logs?.length)return 0;const l=n.logs[n.logs.length-1];return l.total!==undefined?l.total:(l.chapter+(l.draft||0));}
+function latestDraft(n){return Math.max(0, latestTotal(n) - latestCh(n));}
+function latestDate(n){return n.logs?.length?n.logs[n.logs.length-1].date:n.start;}
+function daysWriting(n){return Math.max(1,diffDays(latestDate(n),n.start)+1);}
+function compl(n){if(!n.target)return null;return Math.min(100,Math.round(latestCh(n)/n.target*100));}
+function sLabel(s){return{active:'连载中',hiatus:'暂停',complete:'已完结'}[s]||s;}
+function sCls(s){return{active:'b-active',hiatus:'b-hiatus',complete:'b-complete'}[s]||'';}
+function save(){localStorage.setItem('novelTrackerData', JSON.stringify(novels));}
+
+function exportData() {
+  const data = JSON.stringify(novels, null, 2);
+  const blob = new Blob([data], {type: 'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `novetracker_backup_${todayStr()}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('📦 数据备份已导出');
+}
+
+function importData(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const imported = JSON.parse(e.target.result);
+      if (Array.isArray(imported)) {
+        if (confirm('⚠️ 警告：导入数据将覆盖当前所有进度！\n\n确认导入吗？')) {
+          novels = imported;
+          save();
+          renderAll();
+          showToast('✅ 数据导入成功');
+        }
+      } else {
+        alert('无效的备份文件格式！');
+      }
+    } catch (err) {
+      alert('读取文件失败，可能文件已损坏。');
+    }
+    event.target.value = ''; // Reset input
+  };
+  reader.readAsText(file);
+}
+
+function load(){
+  try{
+    const raw=localStorage.getItem('novelTrackerData');
+    if(raw){novels=JSON.parse(raw);return;}
+  }catch(e){}
+  initDemo();
+}
+
+function makeLogs(start,days,rate){
+  const logs=[];const t=todayStr();
+  for(let i=0;i<=days;i++){
+    const d=addDays(start,i);if(d>=t)break;
+    logs.push({date:d,chapter:Math.round(i*rate),total:Math.round(i*rate)+Math.round(rate*2)});
+  }
+  return logs;
+}
+function initDemo(){
+  const t=todayStr();
+  novels=[
+    {id:1,name:'星河漫步',start:addDays(t,-80),status:'active',target:500,daily:2,color:PAL[0],logs:makeLogs(addDays(t,-80),80,1.9)},
+    {id:2,name:'剑道通天',start:addDays(t,-55),status:'active',target:800,daily:3,color:PAL[1],logs:makeLogs(addDays(t,-55),55,2.5)},
+    {id:3,name:'都市之王',start:addDays(t,-38),status:'hiatus',target:300,daily:1,color:PAL[2],logs:makeLogs(addDays(t,-38),25,1.4)},
+    {id:4,name:'魔法禁书目录',start:addDays(t,-20),status:'active',target:200,daily:2,color:PAL[3],logs:makeLogs(addDays(t,-20),20,2.2)},
+  ];
+}
+
+const SCALES={
+  '2w':{colW:40},
+  '1m':{colW:20},
+  '3m':{colW:10},
+  'all':{colW:4},
+};
+const LABEL_W=158;
+
+function getDateRange(){
+  const t=todayStr();
+  if(!novels.length) return {dates: [t], colW: SCALES[scale].colW};
+  
+  let minD = t;
+  let maxD = addDays(t, 30);
+  
+  novels.forEach(n => {
+    if(n.start < minD) minD = n.start;
+    const ld = latestDate(n);
+    const draft = latestDraft(n);
+    const daily = n.daily || 1;
+    const draftDays = Math.ceil(draft / daily);
+    const draftEnd = addDays(ld, draftDays);
+    if(draftEnd > maxD) maxD = draftEnd;
+  });
+  
+  minD = addDays(minD, -7);
+  maxD = addDays(maxD, 14);
+
+  const days = diffDays(maxD, minD) + 1;
+  const dates=[];
+  for(let i=0;i<days;i++) dates.push(addDays(minD,i));
+  return {dates, colW:SCALES[scale].colW};
+}
+
+let isDraggingGantt = false;
+let startX, scrollLeft;
+
+function initGanttDrag(){
+  const scroll = document.getElementById('g-scroll');
+  if(!scroll) return;
+  scroll.addEventListener('mousedown', (e) => {
+    if(e.target.closest('.g-label') || e.target.closest('.g-bar')) return;
+    isDraggingGantt = true;
+    scroll.style.cursor = 'grabbing';
+    startX = e.pageX - scroll.offsetLeft;
+    scrollLeft = scroll.scrollLeft;
+  });
+  scroll.addEventListener('mouseleave', () => {
+    isDraggingGantt = false;
+    scroll.style.cursor = 'auto';
+  });
+  scroll.addEventListener('mouseup', () => {
+    isDraggingGantt = false;
+    scroll.style.cursor = 'auto';
+  });
+  scroll.addEventListener('mousemove', (e) => {
+    if(!isDraggingGantt) return;
+    e.preventDefault();
+    const x = e.pageX - scroll.offsetLeft;
+    const walk = (x - startX) * 1.5; 
+    scroll.scrollLeft = scrollLeft - walk;
+  });
+}
+
+function renderGantt(preserveScroll = false, updatedIds = []){
+  const inner=document.getElementById('g-inner');
+  const scroll=document.getElementById('g-scroll');
+  if(!inner || !scroll)return;
+  
+  const oldScrollLeft = scroll.scrollLeft;
+  const {dates,colW}=getDateRange();
+  const t=todayStr();
+  const numCols=dates.length;
+
+  inner.style.gridTemplateColumns=`${LABEL_W}px repeat(${numCols}, ${colW}px)`;
+
+  let html=`<div class="g-corner">小说</div>`;
+  let monthHtml='';
+  let dateHtml='';
+  let currentMonth='';
+  let monthColSpan=0;
+
+  dates.forEach((d, i)=>{
+    const dt=new Date(d);
+    const day=dt.getDate(), dow=dt.getDay();
+    const isWE=dow===0||dow===6, isTd=d===t;
+    
+    const mStr = `${dt.getFullYear()}年${dt.getMonth()+1}月`;
+    if(mStr !== currentMonth) {
+      if(monthColSpan > 0) {
+        monthHtml += `<div class="g-month" style="grid-column: span ${monthColSpan}"><span>${currentMonth}</span></div>`;
+      }
+      currentMonth = mStr;
+      monthColSpan = 1;
+    } else {
+      monthColSpan++;
+    }
+
+    let lbl='';
+    if(colW>=40){
+      lbl=day;
+    } else if(colW>=20) {
+      if(day%5===0 || day===1) lbl=day;
+    } else if(colW>=10) {
+      if(day%10===0 || day===1) lbl=day;
+    } else {
+      if(day===1 || day===15) lbl=day;
+    }
+    
+    dateHtml+=`<div class="g-date${isWE?' we':''}${isTd?' td':''}">${lbl}</div>`;
+    
+    if(i === dates.length - 1) {
+      monthHtml += `<div class="g-month" style="grid-column: span ${monthColSpan}"><span>${currentMonth}</span></div>`;
+    }
+  });
+
+  html += monthHtml + dateHtml;
+
+  if(!novels.length){
+    html+=`<div style="grid-column:1/-1"><div class="empty">
+      <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+      <h3>还没有小说</h3><p>点击右上角"新增小说"开始追踪</p>
+      <button class="btn btn-primary" onclick="openAdd()">新增小说</button>
+    </div></div>`;
+  } else {
+    novels.forEach(n=>{
+      const ch=latestCh(n), cp=compl(n), ld=latestDate(n);
+      const checkedIn = ld === t;
+      const isUpdated = updatedIds.includes(n.id);
+      
+      const checkIcon = checkedIn ? `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="3" style="margin-left:4px;vertical-align:-1px"><polyline points="20 6 9 17 4 12"></polyline></svg>` : '';
+      const metaParts=[`第 ${ch} 章`];
+      if(cp!==null) metaParts.push(`${cp}%`);
+      html+=`<div class="g-label">
+        <div class="dot" style="background:${n.color};flex-shrink:0" onclick="openEdit(${n.id})"></div>
+        <div class="g-label-inner" onclick="openEdit(${n.id})">
+          <div class="g-novel-name">${n.name}${checkIcon}</div>
+          <div class="g-novel-meta">${metaParts.join(' · ')}</div>
+        </div>
+        <button class="icon-btn" style="height:20px;min-width:20px;padding:0;margin-left:auto;opacity:0.3" onclick="goStart(${n.id})" title="定位到开始日期">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 17l-5-5 5-5M18 17l-5-5 5-5"/></svg>
+        </button>
+      </div>`;
+
+      // Visual Progress: The solid bar ends at the last checked-in date (ld), not just 't'
+      const barRight = ld; 
+      const startIdx = diffDays(n.start, dates[0]);
+      const endIdx   = diffDays(barRight, dates[0]);
+      
+      const draft = latestDraft(n);
+      const daily = n.daily || 1;
+      const draftDays = Math.ceil(draft / daily);
+      const draftEndIdx = diffDays(addDays(barRight, draftDays), dates[0]);
+
+      let bgCells='';
+      dates.forEach(d=>{
+        const dt=new Date(d);const dow=dt.getDay();
+        const isMS=dt.getDate()===1,isWE=dow===0||dow===6,isTd=d===t;
+        bgCells+=`<div class="g-bg-cell${isMS?' ms':''}${isWE?' we':''}${isTd?' td':''}" style="width:${colW}px;min-width:${colW}px;flex-shrink:0"></div>`;
+      });
+
+      let barHtml='';
+      const visStart = Math.max(0, startIdx);
+      const visEnd   = Math.min(numCols-1, endIdx);
+      if(visEnd>=0 && visStart<=numCols-1 && endIdx>=startIdx){
+        const barLeft=visStart*colW;
+        const barWidth=(visEnd-visStart+1)*colW;
+        
+        const logDates = n.logs?.map(l=>l.date) || [];
+        let innerBlocks = '';
+        for(let i=visStart; i<=visEnd; i++){
+          const d = dates[i];
+          if(logDates.includes(d)) {
+            const blockLeft = (i - visStart) * colW;
+            innerBlocks += `<div style="position:absolute;left:${blockLeft}px;top:0;bottom:0;width:${colW}px;background:${n.color};pointer-events:none"></div>`;
+          }
+        }
+
+        const baseBg = `color-mix(in oklab, ${n.color} 10%, transparent) repeating-linear-gradient(-45deg, transparent, transparent 4px, color-mix(in oklab, ${n.color} 30%, transparent) 4px, color-mix(in oklab, ${n.color} 30%, transparent) 8px)`;
+
+        barHtml=`<div class="g-bar${isUpdated ? ' updated' : ''}" style="left:${barLeft}px;width:${barWidth}px;background:${baseBg};overflow:hidden"
+          onmouseenter="showTT(event,${n.id})" onmouseleave="hideTT()">
+          ${innerBlocks}
+          ${barWidth > 40 ? `<div class="g-bar-label" style="justify-content:flex-end;text-shadow:0 1px 2px rgba(0,0,0,0.5);z-index:2">${ch}章</div>` : ''}
+        </div>`;
+      }
+
+      const visDraftStart = Math.max(0, endIdx + 1);
+      const visDraftEnd = Math.min(numCols-1, draftEndIdx);
+      if(draft > 0 && visDraftEnd >= 0 && visDraftStart <= numCols-1 && draftEndIdx >= visDraftStart) {
+        const dLeft = visDraftStart * colW;
+        const dWidth = (visDraftEnd - visDraftStart + 1) * colW;
+        barHtml += `<div class="g-bar${isUpdated ? ' updated' : ''}" style="left:${dLeft}px;width:${dWidth}px;background:${n.color};opacity:0.4;background-image:repeating-linear-gradient(45deg, transparent, transparent 4px, rgba(255,255,255,0.2) 4px, rgba(255,255,255,0.2) 8px)"
+          onmouseenter="showTT(event,${n.id})" onmouseleave="hideTT()">
+          <div class="g-bar-label" style="text-shadow:0 1px 2px rgba(0,0,0,0.5)">${dWidth>30 ? '存稿' : ''}</div>
+        </div>`;
+      }
+
+      html+=`<div class="g-track" style="grid-column:2/-1">
+        <div class="g-track-bg">${bgCells}</div>
+        ${barHtml}
+      </div>`;
+    });
+  }
+
+  inner.innerHTML=html;
+  
+  if(preserveScroll) {
+    scroll.scrollLeft = oldScrollLeft;
+  } else {
+    goToday(false);
+  }
+}
+
+function setScale(s){
+  scale=s;
+  document.querySelectorAll('.stab').forEach(b=>{
+    b.classList.toggle('active',b.dataset.s===s);
+  });
+  renderGantt();
+}
+
+function goDate(dateStr, smooth = true){
+  const scroll = document.getElementById('g-scroll');
+  if(!scroll) return;
+  const {dates, colW} = getDateRange();
+  const idx = dates.indexOf(dateStr);
+  
+  if(idx >= 0) {
+    const containerWidth = scroll.clientWidth;
+    const targetLeft = (idx * colW) - (containerWidth / 2) + LABEL_W;
+    scroll.scrollTo({ left: Math.max(0, targetLeft), behavior: smooth ? 'smooth' : 'auto' });
+  }
+}
+
+function goToday(smooth = true){
+  goDate(todayStr(), smooth);
+}
+
+function goStart(id, smooth = true){
+  const n=novels.find(x=>x.id===id);if(!n)return;
+  goDate(n.start, smooth);
+}
+
+let ttHoverId = null;
+let ttHoverDate = null;
+
+function showTT(e,id){
+  ttHoverId = id;
+  ttHoverDate = null;
+  document.getElementById('tt').classList.add('show');
+  moveTT(e);
+}
+function hideTT(){
+  ttHoverId = null;
+  ttHoverDate = null;
+  document.getElementById('tt').classList.remove('show');
+}
+function moveTT(e){
+  const t=document.getElementById('tt');
+  if(!t.classList.contains('show') || !ttHoverId) return;
+  t.style.left=(e.clientX+16)+'px';
+  t.style.top=(e.clientY-8)+'px';
+
+  const inner = document.getElementById('g-inner');
+  if(!inner) return;
+
+  const rect = inner.getBoundingClientRect();
+  const mouseX = e.clientX - rect.left - LABEL_W;
+  const {dates, colW} = getDateRange();
+  
+  let hDate = null;
+  if (mouseX >= 0) {
+    const idx = Math.floor(mouseX / colW);
+    hDate = dates[idx];
+  }
+
+  if (hDate !== ttHoverDate) {
+    ttHoverDate = hDate;
+    updateTTContent(ttHoverId, hDate);
+  }
+}
+
+function updateTTContent(id, hDate) {
+  const n=novels.find(x=>x.id===id); if(!n) return;
+  const t=document.getElementById('tt');
+
+  let dailyText = '';
+  if (hDate) {
+    const logIdx = n.logs?.findIndex(l=>l.date===hDate);
+    if(logIdx !== undefined && logIdx >= 0) {
+      const cur = n.logs[logIdx];
+      const prevLogs = n.logs.filter(l => l.date < hDate);
+      const prevCh = prevLogs.length > 0 ? prevLogs[prevLogs.length-1].chapter : 0;
+      const dCh = cur.chapter - prevCh;
+      dailyText = `<div class="tt-row" style="margin-top:8px;border-top:1px dashed var(--divider);padding-top:8px"><span style="color:var(--primary)">📅 ${hDate}</span><b style="color:var(--primary)">更新 +${dCh} 章</b></div>`;
+    } else if(hDate > latestDate(n) && hDate <= addDays((n.status==='active'?todayStr():latestDate(n)), Math.ceil(latestDraft(n)/(n.daily||1)))) {
+      dailyText = `<div class="tt-row" style="margin-top:8px;border-top:1px dashed var(--divider);padding-top:8px"><span style="color:var(--muted)">📅 ${hDate}</span><b style="color:var(--muted)">存稿覆盖</b></div>`;
+    } else if (hDate < n.start) {
+      dailyText = `<div class="tt-row" style="margin-top:8px;border-top:1px dashed var(--divider);padding-top:8px"><span style="color:var(--muted)">📅 ${hDate}</span><b style="color:var(--muted)">未开始</b></div>`;
+    } else {
+      dailyText = `<div class="tt-row" style="margin-top:8px;border-top:1px dashed var(--divider);padding-top:8px"><span style="color:var(--muted)">📅 ${hDate}</span><b style="color:var(--muted)">无发文记录</b></div>`;
+    }
+  }
+
+  const cp=compl(n), ld=latestDate(n);
+  const days=daysWriting(n);
+  const spd=days>0?(latestCh(n)/days).toFixed(2):'—';
+
+  t.innerHTML=`
+    <div class="tt-name"><span style="color:${n.color}">●</span>${n.name}</div>
+    <div class="tt-row">开始日期<b>${n.start}</b></div>
+    <div class="tt-row">最近更新<b>${ld}</b></div>
+    <div class="tt-row">当前章节<b>第 ${latestCh(n)} 章</b></div>
+    <div class="tt-row">日均更新<b>${spd} 章/天</b></div>
+    ${cp!==null?`<div class="tt-row">完成度<b>${cp}%</b></div>`:''}
+    ${latestDraft(n)>0?`<div class="tt-row">当前存稿<b>${latestDraft(n)} 章</b></div>`:''}
+    ${dailyText}
+  `;
+}
+
+document.addEventListener('mousemove',moveTT);
+
+let dragId = null;
+function dragStart(e, id) { dragId = id; e.currentTarget.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; }
+function dragOver(e) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; const t = e.currentTarget.closest('.nc'); if(t) t.classList.add('drag-over'); return false; }
+function dragEnter(e) { e.preventDefault(); }
+function dragLeave(e) { const t = e.currentTarget.closest('.nc'); if(t) t.classList.remove('drag-over'); }
+function dragEnd(e) { e.currentTarget.classList.remove('dragging'); document.querySelectorAll('.nc').forEach(el => el.classList.remove('drag-over')); }
+function drop(e, targetId) {
+  e.stopPropagation(); e.preventDefault();
+  const targetEl = e.currentTarget.closest('.nc'); if(targetEl) targetEl.classList.remove('drag-over');
+  if (dragId === targetId || !dragId) return false;
+  const fromIdx = novels.findIndex(n => n.id === dragId);
+  const toIdx = novels.findIndex(n => n.id === targetId);
+  if (fromIdx < 0 || toIdx < 0) return;
+  const [moved] = novels.splice(fromIdx, 1);
+  novels.splice(toIdx, 0, moved);
+  save(); renderAll();
+  return false;
+}
+
+function renderDash(){
+  const total=novels.length,active=novels.filter(n=>n.status==='active').length;
+  const totalCh=novels.reduce((s,n)=>s+latestCh(n),0);
+  const fastest=novels.length?novels.reduce((a,b)=>{
+    const sa=latestCh(a)/daysWriting(a), sb=latestCh(b)/daysWriting(b);return sa>sb?a:b;
+  }):null;
+  const avg=novels.length?(novels.reduce((s,n)=>s+latestCh(n)/daysWriting(n),0)/novels.length).toFixed(2):'0.00';
+  document.getElementById('kpis').innerHTML=`
+    <div class="kpi"><div class="kpi-lbl">总小说数</div><div class="kpi-val">${total}</div><div class="kpi-sub">${active} 部连载中</div></div>
+    <div class="kpi"><div class="kpi-lbl">累计章节</div><div class="kpi-val">${totalCh.toLocaleString()}</div><div class="kpi-sub">所有小说合计</div></div>
+    <div class="kpi"><div class="kpi-lbl">平均日更</div><div class="kpi-val">${avg}</div><div class="kpi-sub">章/天</div></div>
+    <div class="kpi"><div class="kpi-lbl">最快更新</div><div class="kpi-val" style="font-size:var(--tx-lg)">${fastest?fastest.name:'—'}</div><div class="kpi-sub">${fastest?(latestCh(fastest)/daysWriting(fastest)).toFixed(2)+' 章/天':''}</div></div>`;
+  document.getElementById('cards').innerHTML=novels.length
+    ?novels.map((n, idx)=>{
+        const ch=latestCh(n),cp=compl(n),days=daysWriting(n);
+        const spd=(ch/days).toFixed(2);
+        const isToday = latestDate(n) === todayStr();
+        const ciBadge = isToday ? `<span class="badge" style="background:color-mix(in oklab,var(--primary) 15%,transparent);color:var(--primary)">今日已打卡</span>` : '';
+        return`<div class="nc" draggable="true" ondragstart="dragStart(event,${n.id})" ondragover="dragOver(event)" ondragenter="dragEnter(event)" ondragleave="dragLeave(event)" ondrop="drop(event,${n.id})" ondragend="dragEnd(event)" title="拖拽以重新排序">
+          <div class="nc-head"><div class="nc-name"><span class="dot" style="background:${n.color}"></span>${n.name}</div><div style="display:flex;gap:4px">${ciBadge}<span class="badge ${sCls(n.status)}">${sLabel(n.status)}</span></div></div>
+          <div class="nc-meta">
+            <div class="nc-m"><span class="nc-ml">当前章节</span><span class="nc-mv" style="color:${n.color}">${ch} 章</span></div>
+            <div class="nc-m"><span class="nc-ml">写作天数</span><span class="nc-mv">${days} 天</span></div>
+            <div class="nc-m"><span class="nc-ml">日均</span><span class="nc-mv">${spd} 章</span></div>
+            ${n.target?`<div class="nc-m"><span class="nc-ml">目标</span><span class="nc-mv">${n.target}</span></div>`:''}
+          </div>
+          ${cp!==null?`<div class="prog-wrap"><div class="prog-lbl"><span>完成度 ${cp}%</span><span>${ch}/${n.target}</span></div><div class="prog-track"><div class="prog-fill" style="width:${cp}%;background:${n.color}"></div></div></div>`:''}
+          <div class="nc-acts">
+            <button class="btn btn-ghost" style="flex:1;font-size:10px;pointer-events:all;color:var(--blue);border-color:color-mix(in oklab,var(--blue) 30%,transparent)" onclick="openWrite(${n.id})">记录码字</button>
+            <button class="btn btn-ghost" style="padding:6px 8px;pointer-events:all" onclick="openEdit(${n.id})"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M11.5 2.5a1.5 1.5 0 0 1 2.12 2.12L5 13.24l-3 .76.76-3z"/></svg></button>
+            <button class="btn btn-danger" style="padding:6px 8px;pointer-events:all" onclick="delNovel(${n.id})"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 4h12M5 4V2h6v2M6 7v5M10 7v5M3 4l1 10h8l1-10"/></svg></button>
+          </div>
+        </div>`;
+      }).join('')
+    :`<div class="empty" style="grid-column:1/-1"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg><h3>还没有小说</h3><p>点击右上角新增小说开始追踪</p><button class="btn btn-primary" onclick="openAdd()">新增小说</button></div>`;
+}
+
+function buildSwatches(selected){
+  const used=novels.filter(n=>n.id!==eid).map(n=>n.color);
+  selColor=selected||(PAL.find(c=>!used.includes(c))||PAL[0]);
+  document.getElementById('color-swatches').innerHTML=PAL.map(c=>`
+    <div class="swatch${c===selColor?' selected':''}" style="background:${c}" onclick="pickColor('${c}')"></div>`).join('');
+}
+function pickColor(c){selColor=c;buildSwatches(c);}
+
+function openAdd(){
+  eid=null;
+  document.getElementById('nm-title').textContent='新增小说';
+  document.getElementById('f-name').value='';
+  document.getElementById('f-start').value=todayStr();
+  document.getElementById('f-target').value='';
+  document.getElementById('f-ch').value='0';
+  document.getElementById('f-total').value='0';
+  document.getElementById('f-daily').value='1';
+  document.getElementById('f-status').value='active';
+  buildSwatches(null);
+  openM('nm');
+}
+function openEdit(id){
+  const n=novels.find(x=>x.id===id);if(!n)return;
+  eid=id;
+  document.getElementById('nm-title').textContent='编辑小说';
+  document.getElementById('f-name').value=n.name;
+  document.getElementById('f-start').value=n.start;
+  document.getElementById('f-target').value=n.target||'';
+  document.getElementById('f-ch').value=latestCh(n);
+  document.getElementById('f-total').value=latestTotal(n);
+  document.getElementById('f-daily').value=n.daily||1;
+  document.getElementById('f-status').value=n.status;
+  buildSwatches(n.color);
+  openM('nm');
+}
+function saveNovel(){
+  const name=document.getElementById('f-name').value.trim();
+  const start=document.getElementById('f-start').value;
+  const target=parseInt(document.getElementById('f-target').value)||null;
+  const ch=parseInt(document.getElementById('f-ch').value)||0;
+  const total=parseInt(document.getElementById('f-total').value)||ch;
+  const daily=parseInt(document.getElementById('f-daily').value)||1;
+  const status=document.getElementById('f-status').value;
+  if(!name||!start){alert('请填写小说名和开始日期');return;}
+  if(eid){
+    const n=novels.find(x=>x.id===eid);
+    n.name=name;n.start=start;n.target=target;n.status=status;n.color=selColor;n.daily=daily;
+    if(ch!==latestCh(n) || total!==latestTotal(n)){n.logs=n.logs||[];n.logs.push({date:todayStr(),chapter:ch,total});n.logs.sort((a,b)=>a.date.localeCompare(b.date));}
+  } else {
+    novels.push({id:Date.now(),name,start,target,status,color:selColor,daily,logs:[{date:start,chapter:ch,total}]});
+  }
+  save();closeM('nm');renderAll();
+}
+function delNovel(id){if(!confirm('确认删除？'))return;novels=novels.filter(n=>n.id!==id);save();renderAll();}
+
+function openWrite(id){
+  const n=novels.find(x=>x.id===id);if(!n)return;
+  wid=id;
+  document.getElementById('wm-title').textContent=`记录码字 · ${n.name}`;
+  document.getElementById('wm-date').value=todayStr();
+  document.getElementById('wm-delta-total').value=1;
+  openM('wm');
+}
+
+function saveWrite(){
+  const n=novels.find(x=>x.id===wid);if(!n)return;
+  const date=document.getElementById('wm-date').value;
+  const dTot=parseInt(document.getElementById('wm-delta-total').value)||0;
+  if(!date || dTot<=0){alert('请填写有效的日期和章数');return;}
+  
+  const existingLog = (n.logs||[]).find(l => l.date === date);
+  const oldCh = existingLog ? existingLog.chapter : latestCh(n);
+  const oldTot = existingLog && existingLog.total !== undefined ? existingLog.total : latestTotal(n);
+  
+  const newTot = oldTot + dTot;
+  
+  n.logs=(n.logs||[]).filter(l=>l.date!==date);
+  n.logs.push({date, chapter:oldCh, total:newTot});
+  n.logs.sort((a,b)=>a.date.localeCompare(b.date));
+  save();closeM('wm');renderAll();
+  showToast('📝 码字记录已保存！存稿增加了');
+}
+
+function openCI(id){
+  const isGlobal = !id;
+  if(isGlobal && !novels.length) { alert('请先新增小说'); return; }
+  
+  const selRow = document.getElementById('ci-novel-row');
+  const sel = document.getElementById('ci-novel-sel');
+  
+  if(isGlobal) {
+    selRow.style.display = 'flex';
+    sel.innerHTML = novels.filter(n=>n.status!=='complete').map(n=>`<option value="${n.id}">${n.name}</option>`).join('') || novels.map(n=>`<option value="${n.id}">${n.name}</option>`).join('');
+    cid = parseInt(sel.value);
+  } else {
+    selRow.style.display = 'none';
+    cid = id;
+  }
+  
+  ciNovelChanged();
+  openM('ci');
+}
+
+function ciNovelChanged(){
+  const selRow = document.getElementById('ci-novel-row');
+  if(selRow.style.display !== 'none') {
+    cid = parseInt(document.getElementById('ci-novel-sel').value);
+  }
+  const n=novels.find(x=>x.id===cid);if(!n)return;
+  
+  document.getElementById('ci-title').textContent = selRow.style.display === 'none' ? `手动打卡 · ${n.name}` : `手动打卡`;
+  const t = todayStr();
+  document.getElementById('ci-date').value = t;
+  
+  const isToday = latestDate(n) === t;
+  const daily = n.daily || 1;
+  
+  if(isToday) {
+    document.getElementById('ci-delta-ch').value = 0;
+    document.getElementById('ci-hint-ch').innerHTML = `<span style="color:var(--warn)">(今日已发)</span>`;
+  } else {
+    document.getElementById('ci-delta-ch').value = daily;
+    document.getElementById('ci-hint-ch').textContent = `(计划:${daily})`;
+  }
+  
+  updateCIPreview();
+}
+
+function updateCIPreview(){
+  const n = novels.find(x=>x.id===cid); if(!n) return;
+  const dCh = parseInt(document.getElementById('ci-delta-ch').value) || 0;
+  
+  const newCh = latestCh(n) + dCh;
+  const newTot = latestTotal(n);
+  const newDr = Math.max(0, newTot - newCh);
+  
+  document.getElementById('ci-preview').textContent = `更新后将记录为：已发 ${newCh} 章 / 存稿剩余 ${newDr} 章`;
+}
+
+function quickCheckInAll() {
+  const t = todayStr();
+  let checkedCount = 0;
+  let details = [];
+  let updatedIds = [];
+
+  novels.forEach(n => {
+    if (n.status === 'active') {
+      const ld = latestDate(n);
+      if (ld !== t) {
+        const daily = n.daily || 1;
+        const newCh = latestCh(n) + daily;
+        const newTot = latestTotal(n); 
+        n.logs = n.logs || [];
+        n.logs.push({date: t, chapter: newCh, total: newTot});
+        n.logs.sort((a,b)=>a.date.localeCompare(b.date));
+        checkedCount++;
+        details.push(`<div style="display:flex;justify-content:space-between;border-bottom:1px solid var(--divider);padding:6px 0;align-items:center">
+          <span style="font-weight:600"><span style="color:${n.color};margin-right:6px">●</span>${n.name}</span>
+          <span style="color:var(--success);font-weight:700">+${daily} 章</span>
+        </div>`);
+        updatedIds.push(n.id);
+      }
+    }
+  });
+
+  if (checkedCount > 0) {
+    save();
+    renderAll(true, updatedIds); 
+    document.getElementById('sm-subtitle').textContent = `今日一键成功推进 ${checkedCount} 本连载小说`;
+    document.getElementById('sm-list').innerHTML = details.join('');
+    openM('sm');
+  } else {
+    showToast(`✨ 今日所有连载小说均已打卡！`);
+  }
+}
+
+let toastTimer;
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>t.classList.remove('show'), 2500);
+}
+
+function saveCI(){
+  const n=novels.find(x=>x.id===cid);if(!n)return;
+  const date=document.getElementById('ci-date').value;
+  const dCh=parseInt(document.getElementById('ci-delta-ch').value)||0;
+  
+  if(!date){alert('请填写日期');return;}
+  
+  const existingLog = (n.logs||[]).find(l => l.date === date);
+  if(existingLog) {
+    if(dCh === 0) {
+      alert('请输入有效的追加章数。');
+      return;
+    }
+    if(!confirm(`【${n.name}】在 ${date} 已经打过卡了。\n\n确认追加这 ${dCh} 章的【发文】记录吗？`)) {
+      return;
+    }
+  } else {
+    // New check-in: Compare with daily plan
+    const daily = n.daily || 1;
+    if(dCh !== daily) {
+      const moreOrLess = dCh > daily ? '大于' : '小于';
+      if(!confirm(`你输入的今日发文数（${dCh} 章）${moreOrLess}设定的计划日更数（${daily} 章）。\n\n确认要按 ${dCh} 章打卡吗？`)) {
+        return;
+      }
+    }
+  }
+  
+  const oldCh = existingLog ? existingLog.chapter : latestCh(n);
+  const newCh = oldCh + dCh;
+  const newTot = existingLog && existingLog.total !== undefined ? existingLog.total : latestTotal(n);
+  
+  n.logs=(n.logs||[]).filter(l=>l.date!==date);
+  n.logs.push({date,chapter:newCh,total:newTot});
+  n.logs.sort((a,b)=>a.date.localeCompare(b.date));
+  save();closeM('ci');renderAll(true, [n.id]);
+  showToast('🎉 手动打卡成功！');
+}
+
+function openRM() {
+  if(!novels.length) return;
+  document.getElementById('rm-date').value = addDays(todayStr(), -1); // Default to yesterday
+  if(document.getElementById('rm-advance-date')) {
+    document.getElementById('rm-advance-date').value = todayStr();
+  }
+  openM('rm');
+}
+
+function executeGlobalRollback() {
+  const targetDate = document.getElementById('rm-date').value;
+  if(!targetDate) return;
+  if(!confirm(`⚠️ 警告：确定要将所有小说的进度【回退至 ${targetDate}】吗？\n\n该日期（不含）之后的所有记录都将被永久删除！`)) return;
+
+  let changed = 0;
+  novels.forEach(n => {
+    const originalLen = (n.logs || []).length;
+    n.logs = (n.logs || []).filter(l => l.date <= targetDate);
+    if(n.logs.length < originalLen) changed++;
+  });
+
+  if(changed > 0) {
+    save();
+    renderAll();
+    showToast(`⏪ 已将 ${changed} 本小说回退至 ${targetDate}`);
+  } else {
+    showToast('没有记录被删除');
+  }
+  closeM('rm');
+}
+
+function executeGlobalAdvanceByDate() {
+  const targetDate = document.getElementById('rm-advance-date').value;
+  if(!targetDate) { alert('请填写补更至的日期'); return; }
+  
+  let checkedCount = 0;
+  let details = [];
+  let updatedIds = [];
+
+  novels.forEach(n => {
+    if (n.status === 'active') {
+      const daily = n.daily || 1;
+      let ld = latestDate(n);
+      let ch = latestCh(n);
+      let tot = latestTotal(n);
+      
+      let changed = false;
+      n.logs = n.logs || [];
+      
+      while (ld < targetDate) {
+        ld = addDays(ld, 1);
+        ch += daily;
+        tot += daily;
+        n.logs.push({date: ld, chapter: ch, total: tot});
+        changed = true;
+      }
+      
+      if(changed) {
+        n.logs.sort((a,b)=>a.date.localeCompare(b.date));
+        checkedCount++;
+        details.push(`<div style="display:flex;justify-content:space-between;border-bottom:1px solid var(--divider);padding:6px 0;align-items:center">
+          <span style="font-weight:600"><span style="color:${n.color};margin-right:6px">●</span>${n.name}</span>
+          <span style="color:var(--success);font-weight:700">已补齐至 ${targetDate}</span>
+        </div>`);
+        updatedIds.push(n.id);
+      }
+    }
+  });
+
+  if (checkedCount > 0) {
+    save();
+    renderAll(true, updatedIds); 
+    document.getElementById('sm-subtitle').textContent = `全局推进成功（共处理 ${checkedCount} 本小说）`;
+    document.getElementById('sm-list').innerHTML = details.join('');
+    closeM('rm');
+    openM('sm');
+  } else {
+    showToast(`✨ 所有小说均已达到或超过目标日期！`);
+  }
+}
+
+function renderLogs() {
+  const filterId = document.getElementById('log-filter-novel').value;
+  const tbody = document.getElementById('log-tbody');
+  
+  let options = '<option value="all">所有小说</option>';
+  novels.forEach(n => {
+    options += `<option value="${n.id}" ${filterId == n.id ? 'selected' : ''}>${n.name}</option>`;
+  });
+  document.getElementById('log-filter-novel').innerHTML = options;
+
+  let rows = [];
+  novels.forEach(n => {
+    if (filterId === 'all' || filterId == n.id) {
+      if (n.logs) {
+        n.logs.forEach(l => {
+          const draft = Math.max(0, (l.total !== undefined ? l.total : l.chapter) - l.chapter);
+          rows.push({
+            novelId: n.id,
+            novelName: n.name,
+            color: n.color,
+            date: l.date,
+            chapter: l.chapter,
+            total: l.total !== undefined ? l.total : l.chapter,
+            draft: draft
+          });
+        });
+      }
+    }
+  });
+
+  rows.sort((a, b) => b.date.localeCompare(a.date));
+
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--muted)">没有记录</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = rows.map(r => `
+    <tr>
+      <td style="font-weight:600"><span style="color:${r.color};margin-right:6px">●</span>${r.novelName}</td>
+      <td>${r.date}</td>
+      <td>${r.chapter}</td>
+      <td>${r.total}</td>
+      <td>${r.draft}</td>
+      <td>
+        <button class="icon-btn" style="color:var(--warn);border-color:color-mix(in oklab,var(--warn) 30%,transparent)" onclick="deleteLog(${r.novelId}, '${r.date}')" title="删除此记录">
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 4h12M5 4V2h6v2M6 7v5M10 7v5M3 4l1 10h8l1-10"/></svg>
+        </button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+function deleteLog(novelId, date) {
+  const n = novels.find(x => x.id === novelId);
+  if(!n) return;
+  if(!confirm(`确认删除【${n.name}】在 ${date} 的记录吗？`)) return;
+  
+  n.logs = n.logs.filter(l => l.date !== date);
+  save();
+  renderAll();
+  showToast(`已删除记录`);
+}
+
+function executeSingleRollback() {
+  const n = novels.find(x => x.id === cid);
+  if(!n) return;
+  const targetDate = document.getElementById('ci-date').value;
+  if(!targetDate) return;
+
+  if(!confirm(`⚠️ 确认要将【${n.name}】回退至 ${targetDate} 吗？\n该日期之后的发文和码字记录都将被删除！`)) return;
+
+  const originalLen = (n.logs || []).length;
+  n.logs = (n.logs || []).filter(l => l.date <= targetDate);
+  
+  save();
+  renderAll(true, [n.id]);
+  closeM('ci');
+  
+  if(n.logs.length < originalLen) {
+    showToast(`⏪ 【${n.name}】已回退至 ${targetDate}`);
+  } else {
+    showToast('没有找到该日期之后的记录');
+  }
+}
+
+function openM(id){document.getElementById(id).classList.add('open');}
+function closeM(id){document.getElementById(id).classList.remove('open');}
+
+function switchView(v){
+  document.querySelectorAll('.view').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.nav-btn[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===v));
+  document.getElementById('view-'+v).classList.add('active');
+  renderAll();
+}
+let dark=false;
+function toggleTheme(){
+  dark=!dark;
+  document.documentElement.setAttribute('data-theme',dark?'dark':'light');
+  const svg=dark
+    ?'<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>'
+    :'<circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>';
+  document.querySelectorAll('.theme-ic').forEach(el=>el.innerHTML=svg);
+}
+// Init light theme icon
+document.querySelectorAll('.theme-ic').forEach(el=>el.innerHTML='<circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>');
+
+function renderAll(preserveScroll = false, updatedIds = []){
+  renderGantt(preserveScroll, updatedIds);
+  renderDash();
+  if(document.getElementById('view-logs').classList.contains('active')) renderLogs();
+}
+load();renderAll();
+initGanttDrag();
+window.addEventListener('resize',()=>{if(document.getElementById('view-gantt').classList.contains('active'))renderGantt(true);});
+</script>
+</body>
+</html>

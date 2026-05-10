@@ -1,0 +1,24 @@
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDEs and Editors
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Temporary files
+*.log
+tmp/
+temp/
+
+# Because this is a local-storage based HTML file, users might accidentally drop their backups in the folder
+# Let's ignore JSON backups to prevent accidental commits of personal novel data
+novetracker_backup_*.json
+*.backup.json
