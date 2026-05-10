@@ -24,7 +24,7 @@
 *   **🎨 丝滑的 UI 体验**
     *   支持 Light / Dark 明暗双主题无缝切换。
     *   支持任意拖拽卡片调整小说排序。
-![Uploading image.png…]()
+![测试](.image.jpg)
 
 ## 🛠️ 如何使用？
 
