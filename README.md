@@ -43,3 +43,16 @@
 ## 📄 开源协议 (License)
 
 本项目遵循 [MIT License](LICENSE) 开源协议，您可以自由地使用、修改和分发，但请保留原作者署名。
+
+## ✨ 近期优化 (Changelog)
+
+在此基础上与 Coze 协作完成了代码优化，原始 1359 行 → 1282 行，功能完全一致。主要优化：
+
+- **Bug 修复**：补全 scale 按钮缺失的 `data-s` 属性（修复切换高亮失效）；移除未使用的 `offset` 变量
+- **性能**：Gantt 渲染中 `Array.includes` 替换为 `Set.has()`，实现 O(1) 查找；DOM 元素启动时缓存避免重复查询；resize 事件添加 150ms 防抖
+- **精简**：
+  - 67 处内联样式提取为语义化 CSS 类
+  - 重复回退逻辑统一为 `rollbackNovels()` 函数
+  - 状态映射 / 主题 SVG 提取为常量
+  - 12 处 `novels.find()` 统一为 `findNovel()` 辅助函数
+- **健壮性**：初始化代码包裹在 `DOMContentLoaded` 中；`localStorage` 写入添加 `try/catch` 避免存储异常导致崩溃
